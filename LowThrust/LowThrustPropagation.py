@@ -10,9 +10,9 @@ http://tudat.tudelft.nl/LICENSE.
 
 AE4866 Propagation and Optimization in Astrodynamics
 Low Thrust
-First name: ***COMPLETE HERE***
-Last name: ***COMPLETE HERE***
-Student number: ***COMPLETE HERE***
+First name: Loek
+Last name: Sanders
+Student number: 4805232
 
 This module computes the dynamics of an interplanetary low-thrust trajectory, using a thrust profile determined from
 a semi-analytical Hodographic shaping method (see Gondelach and Noomen, 2015). This file propagates the dynamics
@@ -117,6 +117,7 @@ In such cases, the selected integrator settings are unsuitable for the problem y
 
 
 # General imports
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 
@@ -140,15 +141,15 @@ import LowThrustUtilities as Util
 spice_interface.load_standard_kernels()
 # NOTE TO STUDENTS: INPUT YOUR PARAMETER SET HERE, FROM THE INPUT FILES
 # ON BRIGHTSPACE, FOR YOUR SPECIFIC STUDENT NUMBER.
-trajectory_parameters = [570727221.2273525 / constants.JULIAN_DAY,
-                         37073942.58665284 / constants.JULIAN_DAY,
-                         0,
-                         2471.19649906354,
-                         4207.587982407276,
-                         -5594.040587888714,
-                         8748.139268525232,
-                         -3449.838496679572,
-                         0.0]
+trajectory_parameters = [2616.6782407408,
+                         780.09375,
+                         1,
+                         -6534.69,
+                         1320.06,
+                         -4655.8,
+                         -2902.23,
+                         -5091.87,
+                         -9810.39]
 
 # Choose whether benchmark is run
 use_benchmark = True
@@ -241,7 +242,7 @@ if use_benchmark:
     benchmark_output_path = current_dir + '/SimulationOutput/benchmarks/' if write_results_to_file else None
 
     # Generate benchmarks
-    benchmark_step_size = 86400.0
+    benchmark_step_size = 43200
     benchmark_list = Util.generate_benchmarks(benchmark_step_size,
                                               initial_propagation_time,
                                               bodies,
@@ -252,7 +253,7 @@ if use_benchmark:
     first_benchmark_state_history = benchmark_list[0]
     second_benchmark_state_history = benchmark_list[1]
     # Create state interpolator for first benchmark
-    benchmark_state_interpolator = interpolators.create_one_dimensional_vector_interpolator(first_benchmark_state_history,
+    benchmark_state_interpolator = interpolators.create_one_dimensional_vector_interpolator(second_benchmark_state_history,
                                                                                             benchmark_interpolator_settings)
 
     # Compare benchmark states, returning interpolator of the first benchmark
@@ -275,6 +276,35 @@ if use_benchmark:
                                                                  second_benchmark_dependent_variable_history,
                                                                  benchmark_output_path,
                                                                  'benchmarks_dependent_variable_difference.dat')
+# Define a 3D figure using pyplot
+# fig = plt.figure(figsize=(6,6), dpi=125)
+# ax = fig.add_subplot(111, projection='3d')
+# ax.set_title(f'Trajectory Earth to Mars')
+
+# first_benchmark_state_history_lst = np.array(list(first_benchmark_state_history.values()))
+# time = np.array(list(first_benchmark_state_history.keys()))
+# Plot the positional state history
+
+# #ax.scatter(first_benchmark_state_history_lst[0,0], first_benchmark_state_history_lst[0,1], first_benchmark_state_history_lst[0,2], label="Earth", marker='o', color='blue')
+# #ax.scatter(first_benchmark_state_history_lst[-1,0], first_benchmark_state_history_lst[-1,1], first_benchmark_state_history_lst[-1,2], label="Mars", marker='o', color='red')
+# ax.plot(first_benchmark_state_history_lst[4:-4, 0]/1.496e11, first_benchmark_state_history_lst[4:-4, 1]/1.496e11, first_benchmark_state_history_lst[4:-4, 2]/1.496e11)
+# # Add the legend and labels, then show the plot
+# ax.legend()
+# ax.set_xlabel('x [AU]')
+# ax.set_ylabel('y [AU]')
+# ax.set_zlabel('z [AU]')
+# #ax.set_aspect('equal', adjustable='box')
+# ax.set_zlim(-1.5, 1.5)
+# plt.show()
+#
+# plt.plot(time[4:-4],first_benchmark_state_history_lst[4:-4, 0], label='x')
+# plt.plot(time[4:-4],first_benchmark_state_history_lst[4:-4, 1], label='y')
+# plt.plot(time[4:-4],first_benchmark_state_history_lst[4:-4, 2], label='z')
+# plt.xlabel('position [m]')
+# plt.ylabel('time [s]')
+# plt.grid()
+# plt.legend()
+# plt.show()
 
 ###########################################################################
 # # WRITE RESULTS FOR SEMI-ANALYTICAL METHOD ################################
@@ -327,16 +357,18 @@ if run_integrator_analysis:
                              propagation_setup.propagator.gauss_modified_equinoctial,
                              propagation_setup.propagator.unified_state_model_quaternions,
                              propagation_setup.propagator.unified_state_model_modified_rodrigues_parameters,
-                             propagation_setup.propagator.unified_state_model_exponential_map]
+                             propagation_setup.propagator.unified_state_model_exponential_map
+                             ]
     # Define settings to loop over
     number_of_propagators = len(available_propagators)
-    number_of_integrators = 5
+    number_of_integrators = 13
 
     # Loop over propagators
     for propagator_index in range(number_of_propagators):
         # Get current propagator, and define translational state propagation settings
         current_propagator = available_propagators[propagator_index]
 
+        initial_time = initial_propagation_time + 4*43200
         # Define propagation settings
         current_propagator_settings = Util.get_propagator_settings(
             trajectory_parameters,
@@ -348,15 +380,22 @@ if run_integrator_analysis:
             current_propagator)
 
         # Loop over different integrators
-        for integrator_index in range(number_of_integrators):
+        # for integrator_index in range(number_of_integrators):
+        for integrator_index in [6]:
             # For RK4, more step sizes are used. NOTE TO STUDENTS, MODIFY THESE AS YOU SEE FIT!
             if integrator_index > 3:
                 number_of_integrator_step_size_settings = 6
             else:
                 number_of_integrator_step_size_settings = 4
+            max_var_lst = []
+            eval_var_lst = []
+            max_fix_lst = []
+            eval_fix_lst = []
 
+            # plt.figure(figsize=(10, 3))
             # Loop over all tolerances / step sizes
-            for step_size_index in range(number_of_integrator_step_size_settings):
+            # for step_size_index in range(number_of_integrator_step_size_settings):
+            for step_size_index in [3]:
                 # Print status
                 to_print = 'Current run: \n propagator_index = ' + str(propagator_index) + \
                            '\n integrator_index = ' + str(integrator_index) \
@@ -428,6 +467,178 @@ if run_integrator_analysis:
                         # Write differences with respect to the benchmarks to files
                         if write_results_to_file:
                             save2txt(dependent_difference, 'dependent_variable_difference_wrt_benchmark.dat', output_path)
+                bench_time = np.array(list(benchmark_state_difference.keys()))
+                new_bench_dict = {k:v for k,v in benchmark_state_difference.items() if k>bench_time[0] + 10*benchmark_step_size and k< bench_time[-1]-10*benchmark_step_size}
+                new_bench_time = np.array(list(new_bench_dict.keys()))
+                bench_diff = np.linalg.norm(np.array(list(new_bench_dict.values()))[:, 0:3], axis=1)
+                new_dict = {k:v for k,v in state_difference.items() if k>bench_time[0] + 10*benchmark_step_size and k< bench_time[-1]-10*benchmark_step_size}
+                time = np.array(list(new_dict.keys()))
+                diff = np.linalg.norm(np.array(list(new_dict.values()))[:,0:3], axis=1)
+                max_error = np.amax(diff)
+                # if integrator_index < 3:
+                #     label = 'tolerance =' + str(10.0 ** (-14.0 + step_size_index))
+                #     marker = 'o'
+                # elif integrator_index == 3:
+                #     label = 'tolerance =' + str(10.0 ** (-12.0 + step_size_index))
+                #     marker = 'v'
+                # elif integrator_index == 4:
+                #     label = 'step size =' + str(7200.0 * 2.0 ** step_size_index)
+                #     marker = '^'
+                # elif integrator_index < 7:
+                #     label = 'step size =' + str(115200.0 * 2.0 ** step_size_index)
+                #     marker = 's'
+                # elif integrator_index == 7:
+                #     label = 'step size =' + str(28800.0 * 2.0 ** step_size_index)
+                #     marker = 'p'
+                # elif integrator_index == 8:
+                #     label = 'step size =' + str(115200.0 * 2.0 ** step_size_index)
+                #     marker = 'P'
+                # elif integrator_index == 9:
+                #     label = 'step size =' + str(288000.0 * 2.0 ** step_size_index)
+                #     marker = '*'
+                # elif integrator_index == 10:
+                #     label = 'tolerance =' + str(10.0 ** (-10.0 + step_size_index))
+                #     marker = 'D'
+                # else:
+                #     label = 'tolerance =' + str(10.0 ** (-12.0 + step_size_index))
+                #     marker = '+'
+            #     if 3 < integrator_index < 10:
+            #         max_fix_lst.append(max_error)
+            #         eval_fix_lst.append(number_of_function_evaluations)
+            #     else:
+            #         max_var_lst.append(max_error)
+            #         eval_var_lst.append(number_of_function_evaluations)
+            # max_fix_lst = np.array(max_fix_lst)
+            # eval_fix_lst = np.array(eval_fix_lst)
+            # if 3 < integrator_index < 10:
+            #     plt.plot(eval_fix_lst, max_fix_lst, label=str(integrator_index), marker=marker)
+            # if integrator_index < 4 or integrator_index > 9:
+            #     plt.plot(eval_fix_lst, max_var_lst, label=str(integrator_index), marker=marker)
+        # plt.yscale('log')
+        # plt.xscale('log')
+        # plt.ylabel('Max position error [m]')
+        # plt.xlabel('Number of function evaluations')
+        # plt.grid()
+        # plt.legend()
+        # plt.show()
+        #         plt.plot(time,diff, label=label)
+        #     plt.plot(new_bench_time,bench_diff,linestyle='dashed', label='benchmark')
+        #     plt.yscale('log')
+        #     plt.title('Integrator index ' + str(integrator_index))
+        #     plt.ylabel('Position error [m]')
+        #     plt.xlabel('Time [s]')
+        #     plt.grid()
+        #     plt.legend(loc='lower right')
+        #     plt.tight_layout()
+        #     plt.show()
+
+        unprocessed = np.array(list(unprocessed_state_history.values()))
+        time2 = np.array(list(unprocessed_state_history.keys()))
+        state = np.array(list(state_history.values()))
+        time1 = np.array(list(state_history.keys()))
+        # shape = unprocessed.shape[1] -1
+        # if shape == 6:
+        #     fig, ((ax1,ax2,ax3), (ax4, ax5,ax6)) = plt.subplots(2,3)
+        #     ax1.plot(time2, unprocessed[:,0])
+        #     ax2.plot(time2, unprocessed[:, 1])
+        #     ax3.plot(time2, unprocessed[:, 2])
+        #     ax4.plot(time2, unprocessed[:, 3])
+        #     ax5.plot(time2, unprocessed[:, 4])
+        #     ax6.plot(time2, np.degrees(unprocessed[:, 5]))
+        # else:
+        #     fig, ((ax1,ax2,ax3,ax4), (ax5,ax6,ax7,ax8)) = plt.subplots(2,4)
+        #     fig.delaxes(ax8)
+        #     ax1.scatter(time2, unprocessed[:, 0])
+        #     ax2.scatter(time2, unprocessed[:, 1])
+        #     ax3.scatter(time2, unprocessed[:, 2])
+        #     ax4.scatter(time2, unprocessed[:, 3])
+        #     ax5.scatter(time2, unprocessed[:, 4])
+        #     ax6.scatter(time2, unprocessed[:, 5])
+        #     ax7.scatter(time2, unprocessed[:, 6])
+        # plt.grid()
+        # plt.show()
+        # if propagator_index <2:
+        #     plt.figure(figsize=(4,3))
+        #     plt.plot(time2, unprocessed[:,0], label='x')
+        #     plt.plot(time2,unprocessed[:,1],label='y')
+        #     plt.plot(time2,unprocessed[:,2],label='z')
+        #     plt.ylabel('Position [m]')
+        #     plt.xlabel('Time [s]')
+        #     plt.legend()
+        #     plt.grid()
+        #     plt.tight_layout()
+        #     plt.show()
+        # if propagator_index == 2:
+        #     fig, (ax1,ax2) = plt.subplots(1,2, figsize=(10,3))
+        #     ax1.plot(time2, unprocessed[:,1])
+        #     ax2.plot(time2, np.degrees(unprocessed[:, 2]))
+        #     ax1.set_xlabel('Time [s]')
+        #     ax2.set_xlabel('Time [s]')
+        #     ax1.set_ylabel('Eccentricity')
+        #     ax2.set_ylabel('Inclination [deg]')
+        #     ax1.grid()
+        #     ax2.grid()
+        #     plt.tight_layout()
+        #     plt.show()
+        if propagator_index == 4:
+            fig, (ax1,ax2,ax3,ax4) = plt.subplots(1,4, figsize=(10,2))
+            ax1.plot(time2, unprocessed[:,3])
+            ax2.plot(time2, unprocessed[:,4])
+            ax3.plot(time2,unprocessed[:,5])
+            ax4.plot(time2, unprocessed[:,6])
+            ax1.grid()
+            ax2.grid()
+            ax3.grid()
+            ax4.grid()
+            ax1.set_xlabel('Time [s]')
+            ax2.set_xlabel('Time [s]')
+            ax3.set_xlabel('Time [s]')
+            ax4.set_xlabel('Time [s]')
+            ax1.set_ylabel('Quaternion 1')
+            ax2.set_ylabel('Quaternion 2')
+            ax3.set_ylabel('Quaternion 3')
+            ax4.set_ylabel('Quaternion 4')
+            plt.tight_layout()
+            plt.show()
+
+        elif propagator_index > 4:
+            fig, (ax1,ax2,ax3,ax4) = plt.subplots(1,4, figsize=(10,2))
+            ax1.scatter(time2, unprocessed[:,3])
+            ax2.scatter(time2, unprocessed[:,4])
+            ax3.scatter(time2,unprocessed[:,5])
+            ax4.scatter(time2, unprocessed[:,6])
+            ax1.grid()
+            ax2.grid()
+            ax3.grid()
+            ax4.grid()
+            ax1.set_xlabel('Time [s]')
+            ax2.set_xlabel('Time [s]')
+            ax3.set_xlabel('Time [s]')
+            ax4.set_xlabel('Time [s]')
+            ax1.set_ylabel('Quaternion 1')
+            ax2.set_ylabel('Quaternion 2')
+            ax3.set_ylabel('Quaternion 3')
+            ax4.set_ylabel('Shadow')
+            plt.tight_layout()
+            plt.show()
+
+
+
+
+
+    #     plt.plot(time,diff,label=str(propagator_index))
+    # plt.yscale('log')
+    # plt.ylabel('Maximum position error [m]')
+    # plt.xlabel('Time [s]')
+    # plt.grid()
+    # plt.legend()
+    # plt.show()
+    #     plt.scatter(number_of_function_evaluations, max_error, label=str(propagator_index))
+    # plt.yscale('log')
+    # plt.grid()
+    # plt.legend()
+    # plt.show()
+
 
     # Print the ancillary information
     print('\n### ANCILLARY SIMULATION INFORMATION ###')

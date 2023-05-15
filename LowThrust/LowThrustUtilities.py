@@ -158,16 +158,36 @@ def get_integrator_settings(propagator_index: int,
     """
     # Define list of multi-stage integrators
     multi_stage_integrators = [propagation_setup.integrator.CoefficientSets.rkf_45,
-                               propagation_setup.integrator.CoefficientSets.rkf_56,
                                propagation_setup.integrator.CoefficientSets.rkf_78,
-                               propagation_setup.integrator.CoefficientSets.rkdp_87]
+                               propagation_setup.integrator.CoefficientSets.rkf_108,
+                               propagation_setup.integrator.CoefficientSets.rkdp_87,
+                               propagation_setup.integrator.CoefficientSets.rk_4,
+                               propagation_setup.integrator.CoefficientSets.rkf_89,
+                               propagation_setup.integrator.CoefficientSets.rkf_1210,
+                               ]
 
     # Use variable step-size integrator
-    if integrator_index < 4:
+    if integrator_index < 3:
         # Select variable-step integrator
         current_coefficient_set = multi_stage_integrators[integrator_index]
         # Compute current tolerance
-        current_tolerance = 10.0 ** (-10.0 + settings_index)
+        current_tolerance = 10.0 ** (-14.0 + settings_index)
+        # Create integrator settings
+        integrator = propagation_setup.integrator
+        # Here (epsilon, inf) are set as respectively min and max step sizes
+        # also note that the relative and absolute tolerances are the same value
+        integrator_settings = integrator.runge_kutta_variable_step_size(
+            1.0,
+            current_coefficient_set,
+            np.finfo(float).eps,
+            np.inf,
+            current_tolerance,
+            current_tolerance)
+    elif integrator_index == 3:
+        # Select variable-step integrator
+        current_coefficient_set = multi_stage_integrators[integrator_index]
+        # Compute current tolerance
+        current_tolerance = 10.0 ** (-12.0 + settings_index)
         # Create integrator settings
         integrator = propagation_setup.integrator
         # Here (epsilon, inf) are set as respectively min and max step sizes
@@ -180,13 +200,230 @@ def get_integrator_settings(propagator_index: int,
             current_tolerance,
             current_tolerance)
     # Use fixed step-size integrator
-    else:
+    elif integrator_index == 4:
+        current_coefficient_set = multi_stage_integrators[integrator_index]
         # Compute time step
         fixed_step_size = 7200.0 * 2.0 ** settings_index
         # Create integrator settings
         integrator = propagation_setup.integrator
         integrator_settings = integrator.runge_kutta_fixed_step_size(
-            fixed_step_size, propagation_setup.integrator.CoefficientSets.rk_4)
+            fixed_step_size, current_coefficient_set)
+    elif integrator_index < 7:
+        current_coefficient_set = multi_stage_integrators[integrator_index]
+        # Compute time step
+        fixed_step_size = 115200.0 * 2.0 ** settings_index
+        # Create integrator settings
+        integrator = propagation_setup.integrator
+        integrator_settings = integrator.runge_kutta_fixed_step_size(
+            fixed_step_size, current_coefficient_set)
+    # Use fixed step-size extrapolation integrator
+    elif integrator_index == 7:
+        extrapolation_sequence = propagation_setup.integrator.ExtrapolationMethodStepSequences.bulirsch_stoer_sequence
+        max_steps = 2
+        fixed_step_size = 28800.0 * 2.0 ** settings_index
+        tolerance = np.inf
+        integrator_settings = propagation_setup.integrator.bulirsch_stoer(
+            fixed_step_size,extrapolation_sequence, max_steps,fixed_step_size,fixed_step_size,tolerance,tolerance)
+    elif integrator_index == 8:
+        extrapolation_sequence = propagation_setup.integrator.ExtrapolationMethodStepSequences.bulirsch_stoer_sequence
+        max_steps = 4
+        fixed_step_size = 115200.0 * 2.0 ** settings_index
+        tolerance = np.inf
+        integrator_settings = propagation_setup.integrator.bulirsch_stoer(
+            fixed_step_size, extrapolation_sequence, max_steps, fixed_step_size, fixed_step_size, tolerance, tolerance)
+    elif integrator_index == 9:
+        extrapolation_sequence = propagation_setup.integrator.ExtrapolationMethodStepSequences.bulirsch_stoer_sequence
+        max_steps = 6
+        fixed_step_size = 288000.0 * 2.0 ** settings_index
+        tolerance = np.inf
+        integrator_settings = propagation_setup.integrator.bulirsch_stoer(
+            fixed_step_size, extrapolation_sequence, max_steps, fixed_step_size, fixed_step_size, tolerance, tolerance)
+    elif integrator_index == 10:
+        extrapolation_sequence = propagation_setup.integrator.ExtrapolationMethodStepSequences.bulirsch_stoer_sequence
+        max_steps = 2
+        tolerance = 10.0 ** (-10.0 + settings_index)
+        integrator_settings = propagation_setup.integrator.bulirsch_stoer(
+            1.0, extrapolation_sequence, max_steps, np.finfo(float).eps, np.inf, tolerance, tolerance)
+    elif integrator_index == 11:
+        extrapolation_sequence = propagation_setup.integrator.ExtrapolationMethodStepSequences.bulirsch_stoer_sequence
+        max_steps = 4
+        tolerance = 10.0 ** (-12.0 + settings_index)
+        integrator_settings = propagation_setup.integrator.bulirsch_stoer(
+            1.0, extrapolation_sequence, max_steps, np.finfo(float).eps, np.inf, tolerance, tolerance)
+    else:
+        extrapolation_sequence = propagation_setup.integrator.ExtrapolationMethodStepSequences.bulirsch_stoer_sequence
+        max_steps = 6
+        tolerance = 10.0 ** (-12.0 + settings_index)
+        integrator_settings = propagation_setup.integrator.bulirsch_stoer(
+            1.0, extrapolation_sequence, max_steps, np.finfo(float).eps, np.inf, tolerance, tolerance)
+
+    return integrator_settings
+
+def get_good_integrator_settings(propagator_index: int,
+                            integrator_index: int,
+                            simulation_start_epoch: float) \
+        -> tudatpy.kernel.numerical_simulation.propagation_setup.integrator.IntegratorSettings:
+    """
+
+    Retrieves the integrator settings.
+
+    It selects a combination of integrator to be used (first argument) and
+    the related setting (tolerance for variable step size integrators
+    or step size for fixed step size integrators). The code, as provided, runs the following:
+    - if j=0,1,2,3: a variable-step-size, multi-stage integrator is used (see multiStageTypes list for specific type),
+                     with tolerances 10^(-10+*k)
+    - if j=4      : a fixed-step-size RK4 integrator is used, with step-size 7200*2^(k)
+
+    Parameters
+    ----------
+    propagator_index : int
+        Index that selects the propagator type (currently not used).
+        NOTE TO STUDENTS: this argument can be used to select specific combinations of propagator and integrators
+        (provided that the code is expanded).
+    integrator_index : int
+        Index that selects the integrator type as follows:
+            0 -> RK4(5)
+            1 -> RK5(6)
+            2 -> RK7(8)
+            3 -> RKDP7(8)
+            4 -> RK4
+    settings_index : int
+        Index that selects the tolerance or the step size
+        (depending on the integrator type).
+    simulation_start_epoch : float
+        Start of the simulation [s] with t=0 at J2000.
+
+    Returns
+    -------
+    integrator_settings : tudatpy.kernel.numerical_simulation.propagation_setup.integrator.IntegratorSettings
+        Integrator settings to be provided to the dynamics simulator.
+
+    """
+    # Define list of multi-stage integrators
+    multi_stage_integrators = [propagation_setup.integrator.CoefficientSets.rkf_45,
+                               propagation_setup.integrator.CoefficientSets.rkf_78,
+                               propagation_setup.integrator.CoefficientSets.rkf_108,
+                               propagation_setup.integrator.CoefficientSets.rkdp_87,
+                               propagation_setup.integrator.CoefficientSets.rk_4,
+                               propagation_setup.integrator.CoefficientSets.rkf_89,
+                               propagation_setup.integrator.CoefficientSets.rkf_1210,
+                               ]
+
+    # Use variable step-size integrator
+    if integrator_index < 2:
+        # Select variable-step integrator
+        current_coefficient_set = multi_stage_integrators[integrator_index]
+        # Compute current tolerance
+        current_tolerance = 10.0 ** (-14.0)
+        # Create integrator settings
+        integrator = propagation_setup.integrator
+        # Here (epsilon, inf) are set as respectively min and max step sizes
+        # also note that the relative and absolute tolerances are the same value
+        integrator_settings = integrator.runge_kutta_variable_step_size(
+            1.0,
+            current_coefficient_set,
+            np.finfo(float).eps,
+            np.inf,
+            current_tolerance,
+            current_tolerance)
+    elif integrator_index == 2:
+        # Select variable-step integrator
+        current_coefficient_set = multi_stage_integrators[integrator_index]
+        # Compute current tolerance
+        current_tolerance = 10.0 ** (-12.0)
+        # Create integrator settings
+        integrator = propagation_setup.integrator
+        # Here (epsilon, inf) are set as respectively min and max step sizes
+        # also note that the relative and absolute tolerances are the same value
+        integrator_settings = integrator.runge_kutta_variable_step_size(
+            1.0,
+            current_coefficient_set,
+            np.finfo(float).eps,
+            np.inf,
+            current_tolerance,
+            current_tolerance)
+    elif integrator_index == 3:
+        # Select variable-step integrator
+        current_coefficient_set = multi_stage_integrators[integrator_index]
+        # Compute current tolerance
+        current_tolerance = 10.0 ** (-11.0)
+        # Create integrator settings
+        integrator = propagation_setup.integrator
+        # Here (epsilon, inf) are set as respectively min and max step sizes
+        # also note that the relative and absolute tolerances are the same value
+        integrator_settings = integrator.runge_kutta_variable_step_size(
+            1.0,
+            current_coefficient_set,
+            np.finfo(float).eps,
+            np.inf,
+            current_tolerance,
+            current_tolerance)
+    # Use fixed step-size integrator
+    elif integrator_index == 4:
+        current_coefficient_set = multi_stage_integrators[integrator_index]
+        # Compute time step
+        fixed_step_size = 7200.0
+        # Create integrator settings
+        integrator = propagation_setup.integrator
+        integrator_settings = integrator.runge_kutta_fixed_step_size(
+            fixed_step_size, current_coefficient_set)
+    elif integrator_index == 5:
+        current_coefficient_set = multi_stage_integrators[integrator_index]
+        # Compute time step
+        fixed_step_size = 460800
+        # Create integrator settings
+        integrator = propagation_setup.integrator
+        integrator_settings = integrator.runge_kutta_fixed_step_size(
+            fixed_step_size, current_coefficient_set)
+    elif integrator_index == 6:
+        current_coefficient_set = multi_stage_integrators[integrator_index]
+        # Compute time step
+        fixed_step_size = 921600
+        # Create integrator settings
+        integrator = propagation_setup.integrator
+        integrator_settings = integrator.runge_kutta_fixed_step_size(
+            fixed_step_size, current_coefficient_set)
+    # Use fixed step-size extrapolation integrator
+    elif integrator_index == 7:
+        extrapolation_sequence = propagation_setup.integrator.ExtrapolationMethodStepSequences.bulirsch_stoer_sequence
+        max_steps = 2
+        fixed_step_size = 115200
+        tolerance = np.inf
+        integrator_settings = propagation_setup.integrator.bulirsch_stoer(
+            fixed_step_size,extrapolation_sequence, max_steps,fixed_step_size,fixed_step_size,tolerance,tolerance)
+    elif integrator_index == 8:
+        extrapolation_sequence = propagation_setup.integrator.ExtrapolationMethodStepSequences.bulirsch_stoer_sequence
+        max_steps = 4
+        fixed_step_size = 921600
+        tolerance = np.inf
+        integrator_settings = propagation_setup.integrator.bulirsch_stoer(
+            fixed_step_size, extrapolation_sequence, max_steps, fixed_step_size, fixed_step_size, tolerance, tolerance)
+    elif integrator_index == 9:
+        extrapolation_sequence = propagation_setup.integrator.ExtrapolationMethodStepSequences.bulirsch_stoer_sequence
+        max_steps = 6
+        fixed_step_size = 2304000
+        tolerance = np.inf
+        integrator_settings = propagation_setup.integrator.bulirsch_stoer(
+            fixed_step_size, extrapolation_sequence, max_steps, fixed_step_size, fixed_step_size, tolerance, tolerance)
+    elif integrator_index == 10:
+        extrapolation_sequence = propagation_setup.integrator.ExtrapolationMethodStepSequences.bulirsch_stoer_sequence
+        max_steps = 2
+        tolerance = 10.0 ** (-10.0)
+        integrator_settings = propagation_setup.integrator.bulirsch_stoer(
+            1.0, extrapolation_sequence, max_steps, np.finfo(float).eps, np.inf, tolerance, tolerance)
+    elif integrator_index == 11:
+        extrapolation_sequence = propagation_setup.integrator.ExtrapolationMethodStepSequences.bulirsch_stoer_sequence
+        max_steps = 4
+        tolerance = 10.0 ** (-12.0)
+        integrator_settings = propagation_setup.integrator.bulirsch_stoer(
+            1.0, extrapolation_sequence, max_steps, np.finfo(float).eps, np.inf, tolerance, tolerance)
+    else:
+        extrapolation_sequence = propagation_setup.integrator.ExtrapolationMethodStepSequences.bulirsch_stoer_sequence
+        max_steps = 6
+        tolerance = 10.0 ** (-12.0)
+        integrator_settings = propagation_setup.integrator.bulirsch_stoer(
+            1.0, extrapolation_sequence, max_steps, np.finfo(float).eps, np.inf, tolerance, tolerance)
+
     return integrator_settings
 
 def get_propagator_settings( trajectory_parameters,
