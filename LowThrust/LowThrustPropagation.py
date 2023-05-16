@@ -10,9 +10,9 @@ http://tudat.tudelft.nl/LICENSE.
 
 AE4866 Propagation and Optimization in Astrodynamics
 Low Thrust
-First name: ***COMPLETE HERE***
-Last name: ***COMPLETE HERE***
-Student number: ***COMPLETE HERE***
+First name: Loek
+Last name: Sanders
+Student number: 4805232
 
 This module computes the dynamics of an interplanetary low-thrust trajectory, using a thrust profile determined from
 a semi-analytical Hodographic shaping method (see Gondelach and Noomen, 2015). This file propagates the dynamics
@@ -142,15 +142,15 @@ import LowThrustUtilities as Util
 spice_interface.load_standard_kernels()
 # NOTE TO STUDENTS: INPUT YOUR PARAMETER SET HERE, FROM THE INPUT FILES
 # ON BRIGHTSPACE, FOR YOUR SPECIFIC STUDENT NUMBER.
-trajectory_parameters = [570727221.2273525 / constants.JULIAN_DAY,
-                         37073942.58665284 / constants.JULIAN_DAY,
-                         0,
-                         2471.19649906354,
-                         4207.587982407276,
-                         -5594.040587888714,
-                         8748.139268525232,
-                         -3449.838496679572,
-                         0]
+trajectory_parameters = [2616.6782407408,
+                         780.09375,
+                         1,
+                         -6534.69,
+                         1320.06,
+                         -4655.8,
+                         -2902.23,
+                         -5091.87,
+                         -9810.39]
 
 # Choose whether benchmark is run
 use_benchmark = True

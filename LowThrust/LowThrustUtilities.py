@@ -10,9 +10,9 @@ http://tudat.tudelft.nl/LICENSE.
 
 AE4866 Propagation and Optimization in Astrodynamics
 Low Thrust
-First name: ***COMPLETE HERE***
-Last name: ***COMPLETE HERE***
-Student number: ***COMPLETE HERE***
+First name: Loek
+Last name: Sanders
+Student number: 4805232
 
 This module defines useful functions that will be called by the main script, where the optimization is executed.
 '''
