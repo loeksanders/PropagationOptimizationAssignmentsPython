@@ -167,7 +167,7 @@ def get_integrator_settings(propagator_index: int,
         # Select variable-step integrator
         current_coefficient_set = multi_stage_integrators[integrator_index]
         # Compute current tolerance
-        current_tolerance = 10.0 ** (-10.0 + settings_index)
+        current_tolerance = 10.0 ** (-11.0)
         # Create integrator settings
         integrator = propagation_setup.integrator
         # Here (epsilon, inf) are set as respectively min and max step sizes
@@ -248,8 +248,154 @@ def get_propagator_settings( trajectory_parameters,
         del acceleration_settings_on_vehicle['Mars']
     elif model_choice == 2:
         del acceleration_settings_on_vehicle['Earth']
-    elif model_choice > 2:
+    elif model_choice == 3 or model_choice == 4 or 14<model_choice<21 :
         acceleration_settings_on_vehicle['Jupiter'] = [propagation_setup.acceleration.point_mass_gravity()]
+    elif model_choice == 5:
+        acceleration_settings_on_vehicle['Moon'] = [propagation_setup.acceleration.point_mass_gravity()]
+    elif model_choice == 6:
+        acceleration_settings_on_vehicle['Saturn'] = [propagation_setup.acceleration.point_mass_gravity()]
+    elif model_choice == 7:
+        acceleration_settings_on_vehicle['Venus'] = [propagation_setup.acceleration.point_mass_gravity()]
+    elif model_choice == 8:
+        acceleration_settings_on_vehicle['Sun'] = [propagation_setup.acceleration.point_mass_gravity(),
+                                                   propagation_setup.acceleration.cannonball_radiation_pressure()
+                                                   ]
+    elif 8 < model_choice < 14: #9=2, 10=4, 11=8, 12=16, 13=32
+        degree = 2
+        order = 2
+        n = model_choice - 8
+        acceleration_settings_on_vehicle['Earth'] = [propagation_setup.acceleration.spherical_harmonic_gravity(degree**n, order**n)]
+    elif model_choice==14:
+        acceleration_settings_on_vehicle['Phobos'] = [propagation_setup.acceleration.point_mass_gravity()]
+    elif model_choice == 21:
+        acceleration_settings_on_vehicle['Neptune'] = [propagation_setup.acceleration.point_mass_gravity()]
+    elif model_choice == 22:
+        acceleration_settings_on_vehicle['Uranus'] = [propagation_setup.acceleration.point_mass_gravity()]
+    elif model_choice == 23:
+        acceleration_settings_on_vehicle['Mercury'] = [propagation_setup.acceleration.point_mass_gravity()]
+    elif model_choice == 24:
+        acceleration_settings_on_vehicle['Jupiter'] = [propagation_setup.acceleration.point_mass_gravity()]
+        acceleration_settings_on_vehicle['Ganymede'] = [propagation_setup.acceleration.point_mass_gravity()]
+        acceleration_settings_on_vehicle['Callisto'] = [propagation_setup.acceleration.point_mass_gravity()]
+        acceleration_settings_on_vehicle['Io'] = [propagation_setup.acceleration.point_mass_gravity()]
+        #acceleration_settings_on_vehicle['Europa'] = [propagation_setup.acceleration.point_mass_gravity()]
+    elif model_choice == 25:
+        acceleration_settings_on_vehicle['Titan'] = [propagation_setup.acceleration.point_mass_gravity()]
+
+
+    # Create global accelerations dictionary
+    acceleration_settings = {'Vehicle': acceleration_settings_on_vehicle}
+    acceleration_models = propagation_setup.create_acceleration_models(
+        bodies,
+        acceleration_settings,
+        bodies_to_propagate,
+        central_bodies)
+
+    # Retrieve initial state
+    initial_state = transfer_trajectory.legs[ 0 ].state_along_trajectory( initial_propagation_time ) + initial_state_perturbation
+
+    # Create propagation settings for the translational dynamics
+    translational_propagator_settings = propagation_setup.propagator.translational(
+        central_bodies,
+        acceleration_models,
+        bodies_to_propagate,
+        initial_state,
+        initial_propagation_time,
+        None,
+        termination_settings,
+        current_propagator,
+        output_variables=dependent_variables_to_save)
+
+    # Create mass rate model
+    mass_rate_settings_on_vehicle = {'Vehicle': [propagation_setup.mass_rate.from_thrust()]}
+    mass_rate_models = propagation_setup.create_mass_rate_models(bodies,
+                                                                 mass_rate_settings_on_vehicle,
+                                                                 acceleration_models)
+    # Create mass propagator settings
+    mass_propagator_settings = propagation_setup.propagator.mass(bodies_to_propagate,
+                                                                 mass_rate_models,
+                                                                 np.array([vehicle_initial_mass]),
+                                                                 initial_propagation_time,
+                                                                 None,
+                                                                 termination_settings)
+
+    # Create multi-type propagation settings list
+    propagator_settings_list = [translational_propagator_settings,
+                                mass_propagator_settings]
+
+    # Create multi-type propagation settings object for translational dynamics and mass.
+    # NOTE: these are not yet 'valid', as no integrator settings are defined yet
+    propagator_settings = propagation_setup.propagator.multitype(propagator_settings_list,
+                                                                 None,
+                                                                 initial_propagation_time,
+                                                                 termination_settings,
+                                                                 dependent_variables_to_save)
+
+    return propagator_settings
+
+def get_new_propagator_settings( trajectory_parameters,
+                             bodies,
+                             initial_propagation_time,
+                             vehicle_initial_mass,
+                             termination_settings,
+                             dependent_variables_to_save,
+                             current_propagator = propagation_setup.propagator.cowell,
+                             model_choice = 0,
+                             initial_state_perturbation = np.zeros( 6 ) ):
+    """
+    Creates the propagator settings.
+
+    This function creates the propagator settings for translational motion and mass, for the given simulation settings
+    Note that, in this function, the thrust_parameters are used to update the engine model and rotation model of the
+    vehicle. The propagator settings that are returned as output of this function are not yet usable: they do not
+    contain any integrator settings, which should be set at a later point by the user
+
+    Parameters
+    ----------
+    trajectory_parameters : list[ float ]
+        List of free parameters for the low-thrust model, which will be used to update the vehicle properties such that
+        the new thrust/magnitude direction are used. The meaning of the parameters in this list is stated at the
+        start of the *Propagation.py file
+    bodies : tudatpy.kernel.numerical_simulation.environment.SystemOfBodies
+        System of bodies present in the simulation.
+    initial_propagation_time : float
+        Start of the simulation [s] with t=0 at J2000.
+    vehicle_initial_mass : float
+        Mass of the vehicle to be used at the initial time
+    termination_settings : tudatpy.kernel.numerical_simulation.propagation_setup.propagator.PropagationTerminationSettings
+        Propagation termination settings object to be used
+    dependent_variables_to_save : list[tudatpy.kernel.numerical_simulation.propagation_setup.dependent_variable]
+        List of dependent variables to save.
+    current_propagator : tudatpy.kernel.numerical_simulation.propagation_setup.propagator.TranslationalPropagatorType
+        Type of propagator to be used for translational dynamics
+
+    Returns
+    -------
+    propagator_settings : tudatpy.kernel.numerical_simulation.propagation_setup.integrator.MultiTypePropagatorSettings
+        Propagator settings to be provided to the dynamics simulator.
+    """
+
+    # Define bodies that are propagated and their central bodies of propagation
+    bodies_to_propagate = ['Vehicle']
+    central_bodies = ['Sun']
+    # Update vehicle rotation model and thrust magnitude model
+    transfer_trajectory = set_hodograph_thrust_model(trajectory_parameters, bodies)
+    # Define accelerations acting on capsule
+    acceleration_settings_on_vehicle = {
+        'Sun': [propagation_setup.acceleration.point_mass_gravity(),
+                propagation_setup.acceleration.cannonball_radiation_pressure()],
+        'Vehicle': [propagation_setup.acceleration.thrust_from_engine('LowThrustEngine')],
+        'Mars': [propagation_setup.acceleration.point_mass_gravity()],
+        'Earth': [propagation_setup.acceleration.spherical_harmonic_gravity(2,2)],
+        'Moon': [propagation_setup.acceleration.point_mass_gravity()],
+        'Jupiter': [propagation_setup.acceleration.point_mass_gravity()],
+        'Saturn': [propagation_setup.acceleration.point_mass_gravity()],
+        'Venus': [propagation_setup.acceleration.point_mass_gravity()],
+        'Neptune': [propagation_setup.acceleration.point_mass_gravity()],
+        'Uranus': [propagation_setup.acceleration.point_mass_gravity()],
+        'Mercury': [propagation_setup.acceleration.point_mass_gravity()]
+    }
+    # Here model settings are modified
 
 
     # Create global accelerations dictionary

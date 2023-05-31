@@ -119,6 +119,7 @@ In such cases, the selected integrator settings are unsuitable for the problem y
 # sys.path.insert(0, "/home/dominic/Tudat/tudat-bundle/tudat-bundle/cmake-build-default/tudatpy")
 
 # General imports
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 
@@ -166,6 +167,8 @@ current_dir = os.path.dirname(__file__)
 # Vehicle settings
 vehicle_mass = 4.0E3
 specific_impulse = 3000.0
+ref_area = 100.0
+radiation_pressure_coefficient = 1.2
 # Fixed parameters
 minimum_mars_distance = 5.0E7
 # Time since 'departure from Earth CoM' at which propagation starts (and similar
@@ -179,7 +182,7 @@ initial_propagation_time = Util.get_trajectory_initial_time(trajectory_parameter
 ###########################################################################
 
 # Set number of models
-number_of_models = 5
+number_of_models = 26
 
 # Initialize dictionary to store the results of the simulation
 simulation_results = dict()
@@ -192,7 +195,19 @@ for model_test in range(number_of_models):
     bodies_to_create = ['Earth',
                         'Mars',
                         'Sun',
-                        'Jupiter']
+                        'Jupiter',
+                        'Moon',
+                        'Saturn',
+                        'Venus',
+                        'Phobos',
+                        'Neptune',
+                        'Mercury',
+                        'Uranus',
+                        'Callisto',
+                        'Ganymede',
+                        'Io',
+                        'Europa',
+                        'Titan']
     # Define coordinate system
     global_frame_origin = 'SSB'
     global_frame_orientation = 'ECLIPJ2000'
@@ -207,6 +222,35 @@ for model_test in range(number_of_models):
                                             spice_interface.get_body_gravitational_parameter('Jupiter')
         body_settings.get('Jupiter').ephemeris_settings = environment_setup.ephemeris.keplerian_from_spice(
             'Jupiter', initial_propagation_time, effective_gravitational_parameter, 'Sun', global_frame_orientation)
+    if (model_test == 15):
+        new_gravitational_parameter = spice_interface.get_body_gravitational_parameter('Jupiter') + \
+                                      spice_interface.get_body_gravitational_parameter('Ganymede')
+        body_settings.get('Jupiter').gravity_field_settings.gravitational_parameter = new_gravitational_parameter
+    if (model_test == 16):
+        new_gravitational_parameter = spice_interface.get_body_gravitational_parameter('Jupiter') + \
+                                      spice_interface.get_body_gravitational_parameter('Callisto')
+        body_settings.get('Jupiter').gravity_field_settings.gravitational_parameter = new_gravitational_parameter
+    if (model_test == 17):
+        new_gravitational_parameter = spice_interface.get_body_gravitational_parameter('Jupiter') + \
+                                      spice_interface.get_body_gravitational_parameter('Io')
+        body_settings.get('Jupiter').gravity_field_settings.gravitational_parameter = new_gravitational_parameter
+    if (model_test == 18):
+        new_gravitational_parameter = spice_interface.get_body_gravitational_parameter('Jupiter') + \
+                                      spice_interface.get_body_gravitational_parameter('Europa')
+        body_settings.get('Jupiter').gravity_field_settings.gravitational_parameter = new_gravitational_parameter
+    if (model_test == 19):
+        new_gravitational_parameter = spice_interface.get_body_gravitational_parameter('Jupiter') + \
+                                      spice_interface.get_body_gravitational_parameter('Callisto') + \
+                                      spice_interface.get_body_gravitational_parameter('Ganymede') + \
+                                      spice_interface.get_body_gravitational_parameter('Io') + \
+                                      spice_interface.get_body_gravitational_parameter('Europa')
+        body_settings.get('Jupiter').gravity_field_settings.gravitational_parameter = new_gravitational_parameter
+    if (model_test == 20):
+        new_gravitational_parameter = spice_interface.get_body_gravitational_parameter('Jupiter') + \
+                                      spice_interface.get_body_gravitational_parameter('Callisto') + \
+                                      spice_interface.get_body_gravitational_parameter('Ganymede') + \
+                                      spice_interface.get_body_gravitational_parameter('Io')
+        body_settings.get('Jupiter').gravity_field_settings.gravitational_parameter = new_gravitational_parameter
 
     # Create bodies
     bodies = environment_setup.create_system_of_bodies(body_settings)
@@ -214,13 +258,19 @@ for model_test in range(number_of_models):
     # Create vehicle object and add it to the existing system of bodies
     bodies.create_empty_body('Vehicle')
     bodies.get_body('Vehicle').mass = vehicle_mass
+    radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
+        'Sun', ref_area, radiation_pressure_coefficient
+    )
+    environment_setup.add_radiation_pressure_interface(
+        bodies, 'Vehicle',radiation_pressure_settings
+    )
     thrust_magnitude_settings = (
         propagation_setup.thrust.custom_thrust_magnitude_fixed_isp(lambda time: 0.0, specific_impulse))
     environment_setup.add_engine_model(
         'Vehicle', 'LowThrustEngine', thrust_magnitude_settings, bodies)
     environment_setup.add_rotation_model(
         bodies, 'Vehicle', environment_setup.rotation_model.custom_inertial_direction_based(
-            lambda time: np.array([1, 0, 0]), global_frame_orientation, 'VehcleFixed'))
+            lambda time: np.array([1, 0, 0]), global_frame_orientation, 'VehicleFixed'))
 
     ###########################################################################
     # CREATE PROPAGATOR SETTINGS ##############################################
@@ -236,7 +286,7 @@ for model_test in range(number_of_models):
     # Check whether there is any
     are_dependent_variables_to_save = False if not dependent_variables_to_save else True
 
-    # Create propagator settings for benchmark (Cowell)
+    # Create propagator settings for benchmark (USM7)
     propagator_settings = Util.get_propagator_settings(
         trajectory_parameters,
         bodies,
@@ -244,11 +294,12 @@ for model_test in range(number_of_models):
         vehicle_mass,
         termination_settings,
         dependent_variables_to_save,
-        current_propagator=propagation_setup.propagator.cowell,
+        current_propagator=propagation_setup.propagator.unified_state_model_quaternions,
         model_choice = model_test )
 
+    # integrator index of 3 == rkdp_87
     propagator_settings.integrator_settings = Util.get_integrator_settings(
-        0,  0, 0, initial_propagation_time)
+        0,  3, 0, initial_propagation_time)
     # Propagate dynamics
     dynamics_simulator = numerical_simulation.create_dynamics_simulator(
         bodies, propagator_settings )
@@ -304,7 +355,7 @@ for model_test in range(1, number_of_models):
 
     # Get limit times at which both histories can be validly interpolated
     interpolation_lower_limit = max(nominal_times[3],current_times[3])
-    interpolation_upper_limit = min(nominal_times[-3],current_times[-3])
+    interpolation_upper_limit = min(nominal_times[-10],current_times[-10])
 
     # Create vector of epochs to be compared (boundaries are referred to the first case)
     unfiltered_interpolation_epochs = np.arange(current_times[0], current_times[-1], output_interpolation_step)
@@ -313,15 +364,61 @@ for model_test in range(1, number_of_models):
 
     #interpolation_epochs = unfiltered_interpolation_epochs
     # Compare state history
-    state_difference_wrt_nominal = Util.compare_models(current_state_history,
-                                                       simulation_results[0][0],
-                                                       interpolation_epochs,
-                                                       output_path,
-                                                       'state_difference_wrt_nominal_case.dat')
-    # Compare dependent variable history
-    dependent_variable_difference_wrt_nominal = Util.compare_models(current_dependent_variable_history,
-                                                                    simulation_results[0][1],
-                                                                    interpolation_epochs,
-                                                                    output_path,
-                                                                    'dependent_variable_difference_wrt_nominal_case.dat')
+    # if model_test==9:
+    #     state_difference_wrt_nominal = Util.compare_models(current_state_history,
+    #                                                        simulation_results[3][0],
+    #                                                        interpolation_epochs,
+    #                                                        output_path,
+    #                                                        'state_difference_wrt_nominal_case.dat')
+    if model_test>9 and model_test<14:
+        state_difference_wrt_nominal = Util.compare_models(current_state_history,
+                                                           simulation_results[model_test-1][0],
+                                                           interpolation_epochs,
+                                                           output_path,
+                                                           'state_difference_wrt_nominal_case.dat')
+    elif model_test >14 and model_test<20:
+        state_difference_wrt_nominal = Util.compare_models(current_state_history,
+                                                           simulation_results[3][0],
+                                                           interpolation_epochs,
+                                                           output_path,
+                                                           'state_difference_wrt_nominal_case.dat')
+    elif model_test == 20:
+        state_difference_wrt_nominal = Util.compare_models(current_state_history,
+                                                           simulation_results[19][0],
+                                                           interpolation_epochs,
+                                                           output_path,
+                                                           'state_difference_wrt_nominal_case.dat')
+    elif model_test == 24:
+        state_difference_wrt_nominal = Util.compare_models(current_state_history,
+                                                           simulation_results[20][0],
+                                                           interpolation_epochs,
+                                                           output_path,
+                                                           'state_difference_wrt_nominal_case.dat')
+    else:
+        state_difference_wrt_nominal = Util.compare_models(current_state_history,
+                                                           simulation_results[0][0],
+                                                           interpolation_epochs,
+                                                           output_path,
+                                                           'state_difference_wrt_nominal_case.dat')
+        # Compare dependent variable history
+        dependent_variable_difference_wrt_nominal = Util.compare_models(current_dependent_variable_history,
+                                                                        simulation_results[0][1],
+                                                                        interpolation_epochs,
+                                                                        output_path,
+                                                                        'dependent_variable_difference_wrt_nominal_case.dat')
+    plt.figure(figsize=(3.5,3))
+    plt.plot(np.array(list(state_difference_wrt_nominal.keys())),
+             np.linalg.norm(np.array(list(state_difference_wrt_nominal.values()))[:,0:3], axis=1), label='norm', linestyle='dashed')
+    plt.plot(np.array(list(state_difference_wrt_nominal.keys())),np.array(list(state_difference_wrt_nominal.values()))[:,0],label='x')
+    plt.plot(np.array(list(state_difference_wrt_nominal.keys())),np.array(list(state_difference_wrt_nominal.values()))[:,1],label='y')
+    plt.plot(np.array(list(state_difference_wrt_nominal.keys())),
+             np.array(list(state_difference_wrt_nominal.values()))[:, 2], label='z')
+    plt.xlabel('Time [s]')
+    plt.ylabel('Position difference [m]')
+    plt.grid()
+    plt.legend(loc='lower left')
+    #plt.yscale('log')
+    plt.title(str(model_test))
+    plt.tight_layout()
+    plt.show()
 
